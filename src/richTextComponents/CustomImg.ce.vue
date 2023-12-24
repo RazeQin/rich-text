@@ -44,17 +44,16 @@ if (props.src) {
     console.log(e)
   }
 }
+
+defineExpose({
+  src: url,
+  title: props.title,
+  alt: props.alt
+})
 </script>
 <template>
-  <img
-    class="image"
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-    v-if="url"
-    :src="url"
-    :title="title"
-    :alt="alt"
-  />
+  <img class="image" crossorigin="anonymous" referrerpolicy="no-referrer" v-if="url" :src="url" :title="title"
+    :alt="alt" />
   <!-- </div> -->
 </template>
 <script lang="ts">

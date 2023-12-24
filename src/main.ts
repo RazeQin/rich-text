@@ -12,6 +12,8 @@ import router from './router'
 const app = createApp(App)
 
 app.use(createPinia())
+console.log(1111);
+
 app.use(router)
 // 注册指令
 app.use(directives)

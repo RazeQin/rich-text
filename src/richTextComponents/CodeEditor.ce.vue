@@ -36,6 +36,9 @@ onBeforeUnmount(() => {
     }
 })
 
+defineExpose({
+    defaultContent: content
+})
 </script>
 
 <template>
@@ -107,5 +110,22 @@ textarea {
 
         line-height: 24px;
     }
+}
+
+.config-container {
+    width: 100%;
+    height: 24px;
+    background-color: black;
+    opacity: 0;
+    transition: .3s;
+}
+
+.close-btn {
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.custom-element:hover .config-container {
+    opacity: .5;
 }
 </style>

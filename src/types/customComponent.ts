@@ -7,6 +7,20 @@ export type CustomComponents = {
     props?: {
       [key: string]: string
     },
-    Constructor:CustomElementConstructor
+    Constructor: CustomElementConstructor
   }
+}
+
+type Attr = {
+  [key: string]: any
+}
+
+export type RichTextVirtualDOM = {
+  nodeName: string,
+  nodeType: number,
+  isCustomEl: boolean,
+  attrs: Attr,
+  children: Array<RichTextVirtualDOM>,
+  textContent: string,
+  props: object
 }

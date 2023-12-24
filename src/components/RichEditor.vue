@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
 import { RichText } from '@/utils/richText/RichText'
-import { customComponentsStore } from '@/stores/customComponents'
-
-const customComponents = customComponentsStore().getComponents
 
 let handleClickBtn: (styles: any) => void
 let insertLink: (text: string, href: string) => void
 let insertCodeBlock: () => void
 let insertTabs: () => void
 let insertImg: () => void
+let getContent: () => void
 const parent = ref()
 onMounted(() => {
-  const richText = new RichText(parent.value, 'edit')
+  const richText = new RichText(parent.value)
   handleClickBtn = (styles) => richText.getCustomSelection(styles)
   insertLink = (text, href) => {
     richText.insertCustomElement('custom-link', { href, text })
@@ -23,7 +21,7 @@ onMounted(() => {
     })
   }
   insertTabs = () => {
-    const data = reactive([{title:'qwe',content:'<custom-img src="https://img-home.csdnimg.cn/images/20230817060237.png"/>'}])
+    const data = reactive([{ title: 'qwe', content: '<custom-img src="https://img-home.csdnimg.cn/images/20230817060237.png"/>' }])
     richText.insertCustomElement('custom-tabs', { data })
   }
   insertImg = () => {
@@ -32,6 +30,9 @@ onMounted(() => {
       name: 'qwe',
       alt: '123'
     })
+  }
+  getContent = () => {
+    console.log(RichText.jsonize(richText.getRootElement()));
   }
 })
 </script>
@@ -44,6 +45,7 @@ onMounted(() => {
   <button @click="insertCodeBlock">插入代码块</button>
   <button @click="insertTabs">插入Tab</button>
   <button @click="insertImg">插入图片</button>
+  <button @click="getContent">获取富文本内容virtualDOM</button>
   <div ref="parent" class="parent"></div>
 </template>
 

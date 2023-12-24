@@ -1,25 +1,29 @@
 <script setup lang="ts">
 import CustomSwiper from '@/components/CustomSwiper.ce.vue'
-import { computed, watch, onMounted, reactive, ref, nextTick } from 'vue'
+import { computed, watch, onMounted, reactive, ref, nextTick, getCurrentInstance } from 'vue'
+import { RichText } from '@/utils/richText/RichText';
+import { type RichTextVirtualDOM } from '@/types/customComponent'
 
 const props = withDefaults(
-  defineProps<{ data: Array<{ title: string; content: string }>; mode: 'edit' | 'show' }>(),
+  defineProps<{ data: Array<{ title: string; content: RichTextVirtualDOM }>; mode: 'edit' | 'show' }>(),
   {
     mode: 'edit'
   }
 )
 
+const instance = getCurrentInstance()
+
 // 这个用来同步页数和title
-const editData = reactive(props.data)
-if (!editData.length) {
-  editData.push(getDefaultTab())
-}
+const editData = reactive(props.data.map(item => {
+  return { title: item.title }
+}))
+
 
 const swiper: any = ref(null)
 const footer = ref(0)
 
 const addTab = () => {
-  editData.push({ title: '', content: '' })
+  editData.push(getDefaultTab())
   footer.value = editData.length - 1
 }
 
@@ -36,23 +40,51 @@ const removeTab = async (index: number) => {
 }
 
 function getDefaultTab() {
-  return { title: '', content: '' }
+  return { title: '' }
 }
+
+const getData = () => {
+  return editData.map(item => ({
+    content: RichText.jsonize(instance?.refs?.[item.__key] as HTMLElement),
+    title: item.title
+  }))
+}
+
 
 watch(footer, (newVal) => {
   console.log('tab--->', newVal)
 })
-onMounted(() => {})
+
+onMounted(() => {
+  if (!editData.length) {
+    editData.push(getDefaultTab())
+  } else {
+    editData.forEach((item, index) => {
+      const containerEl = instance?.refs[item.__key]
+      const defaultData = props.data?.[index]
+      if (containerEl && defaultData?.content) {
+        const defaultContainer = (containerEl as HTMLElement).querySelector('.default-container')
+        if (typeof defaultData.content === 'string') {
+          defaultContainer && defaultContainer.appendChild(document.createTextNode(defaultData.content));
+        } else {
+          defaultContainer && (containerEl as HTMLElement).removeChild(defaultContainer);
+          (containerEl as HTMLElement).appendChild(RichText.parse2DOM(defaultData.content))
+        }
+      }
+    })
+  }
+
+})
+
+defineExpose({
+  data: getData
+})
 </script>
 <template>
   <div class="tabs">
     <ul class="tabs-container">
-      <li
-        :class="{ 'tab-active': index === footer }"
-        v-for="(item, index) of editData"
-        :key="index"
-        @click="footer = index"
-      >
+      <li :class="{ 'tab-active': index === footer }" v-for="(item, index) of editData" :key="index"
+        @click="footer = index">
         <span v-if="mode === 'edit'">
           <input v-model="item.title" placeholder="请输入标签名" />
           <button type="button" @click="removeTab(index)">×</button>
@@ -63,22 +95,12 @@ onMounted(() => {})
         <button type="button" @click="addTab">+</button>
       </li>
     </ul>
-    <CustomSwiper
-      class="swiper"
-      :data="editData"
-      :autoplay="false"
-      :showDoc="false"
-      :loop="false"
-      :activeFooter="footer"
-      ref="swiper"
-    >
+    <CustomSwiper class="swiper" :data="editData" :autoplay="false" :showDoc="false" :loop="false" :activeFooter="footer"
+      ref="swiper">
       <template #default="{ data }">
-        <div
-          :key="data.__key"
-          class="swiper-item"
-          :contenteditable="mode === 'edit'"
-          v-html="data.content"
-        ></div>
+        <div :key="data.__key" class="swiper-item" :ref="data.__key">
+          <div class="default-container" :contenteditable="mode === 'edit'"></div>
+        </div>
       </template>
     </CustomSwiper>
   </div>
@@ -130,7 +152,12 @@ export default {
     box-sizing: border-box;
     padding: 15px;
     border: 1px solid black;
-    overflow: auto;
+
+
+    .default-container {
+      height: 100%;
+      overflow: auto;
+    }
   }
 }
 </style>

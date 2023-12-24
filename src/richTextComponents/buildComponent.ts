@@ -5,6 +5,10 @@ export function buildInlineComponentClass(ParentClass: CustomElementConstructor)
     }
     connectedCallback() {
       super.connectedCallback && super.connectedCallback()
+      // 获取vue实例
+      const vueInstance = this._instance
+      this.getProps = getProps.bind(vueInstance)
+
       // 处理原生撤回时重复生成clone-btn的问题，要判断是否已经存在.v__close-btn'
       if (this.shadowRoot && !this.shadowRoot.querySelector('.v__close-btn')) {
         const closeBtn = document.createElement('a')
@@ -28,6 +32,11 @@ export function buildBlockComponentClass(ParentClass: CustomElementConstructor) 
     }
     connectedCallback() {
       super.connectedCallback && super.connectedCallback()
+
+      // 获取vue实例
+      const vueInstance = this._instance
+      this.getProps = getProps.bind(vueInstance)
+
       if (this.shadowRoot && !this.shadowRoot.querySelector('.v__config-container')) {
         const configContainer = document.createElement('div')
         configContainer.classList.add('v__config-container')
@@ -66,4 +75,24 @@ export function buildBlockComponentClass(ParentClass: CustomElementConstructor) 
     }
   }
   return BlockComponent
+}
+
+
+function getProps() {
+  const obj = {}
+  Object.keys(this.exposed).forEach(prop => {
+    if (this.exposed[prop].value) {
+      obj[prop] = this.exposed[prop].value
+    } else if (typeof this.exposed[prop] === 'function') {
+      obj[prop] = this.exposed[prop]()
+    }
+    else {
+      obj[prop] = this.exposed[prop]
+    }
+  })
+  return {
+    origin: this.exposed,
+    props: obj
+  }
+
 }

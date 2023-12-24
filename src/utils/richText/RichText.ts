@@ -1,32 +1,52 @@
 import { type CSSProperties } from './type'
+import { type RichTextVirtualDOM } from '@/types/customComponent'
 import { customComponentsStore } from '@/stores/customComponents'
-import { browserType } from '@/utils/utils'
+// const customComponents = customComponentsStore().getComponents
 
-const customComponents = customComponentsStore().getComponents
+// 解决pinia循环引用导致报错的问题
+const getCustomComponents = () => {
+  return customComponentsStore().getComponents
+}
 
 class RichText {
   private rootElement!: HTMLElement
   private mode!: 'edit' | 'show'
   private focusEl: HTMLElement | null = null
-  constructor(parent: HTMLElement, mode: 'edit' | 'show') {
-    this.initRootNode(parent, mode)
+  constructor(parent: HTMLElement, vdom: RichTextVirtualDOM | string = '', mode: 'edit' | 'show' = 'edit') {
+    this.mode = mode
+    this.initRootNode(parent, vdom)
   }
 
-  private initRootNode(parent: HTMLElement, mode: 'edit' | 'show') {
-    this.rootElement = document.createElement('div')
+  public getRootElement(){
+    return this.rootElement
+  }
+
+  private initRootNode(parent: HTMLElement, vdom: RichTextVirtualDOM | string | undefined) {
+    if (typeof vdom === 'string') {
+      // 如果为字符串则将他装起来
+      this.rootElement = document.createElement('div')
+      this.rootElement.appendChild(document.createTextNode(vdom))
+    } else if (vdom) {
+      console.log(RichText.parse2DOM(vdom));
+
+      this.rootElement = RichText.parse2DOM(vdom) as HTMLElement
+    } else {
+      this.rootElement = document.createElement('div')
+    }
+
     this.rootElement.contentEditable = 'true'
     this.rootElement.addEventListener('paste', this.processingPasteEvt.bind(this))
-    this.mode = mode
+
     parent.appendChild(this.rootElement)
     document.addEventListener('selectionchange', () => {
       // 获取当前聚焦元素
       let activeEl = document.activeElement
       // shadow dom中的聚焦元素需要递归获取
       //不断地通过shadowroot.activeElement与自定义元素列表比对，观察是否焦点还在内部
-      while (activeEl?.shadowRoot && customComponents[activeEl.nodeName.toLocaleLowerCase()]) {
+      while (activeEl?.shadowRoot && getCustomComponents()[activeEl.nodeName.toLocaleLowerCase()]) {
         const childActiveEl = activeEl.shadowRoot.activeElement
         // 只有当childActiveEl存在且聚焦的为自定义元素才继续找，不然就锁定到这一层就好了，方便获取selection
-        if (childActiveEl && customComponents[childActiveEl.nodeName.toLocaleLowerCase()]) {
+        if (childActiveEl && getCustomComponents()[childActiveEl.nodeName.toLocaleLowerCase()]) {
           activeEl = childActiveEl
         } else {
           break
@@ -52,13 +72,14 @@ class RichText {
 
   // 解决shadow dom引发的contenteditable光标丢失
   public insertCustomElement(name: string, props = {}) {
-    if (!customComponents[name]) {
+    if (!getCustomComponents()[name]) {
       console.error(`不存在该自定义元素：${name}`)
       return
     }
     // 这种方式新建元素支持不同元素类型，比setAttribute好
-    const customComponent = customComponents[name]
+    const customComponent = getCustomComponents()[name]
     const componentInstance = new customComponent.Constructor({ ...props })
+
     const range = this.getCursorRange()
     if (range) {
       if (!range.collapsed) {
@@ -81,9 +102,9 @@ class RichText {
   // 获取当前光标位置
   private getCursorRange() {
     // 只有chrome需要特殊处理
-    if (this.focusEl && customComponents[this.focusEl.nodeName.toLocaleLowerCase()]) {
+    if (this.focusEl && getCustomComponents()[this.focusEl.nodeName.toLocaleLowerCase()]) {
       // 如果不支持嵌套增加组件，则直接返回
-      if (!customComponents[this.focusEl.nodeName.toLocaleLowerCase()].nestable) {
+      if (!getCustomComponents()[this.focusEl.nodeName.toLocaleLowerCase()].nestable) {
         alert('当前组件内部不支持嵌套其他组件或进行操作！')
         return null
       }
@@ -125,7 +146,7 @@ class RichText {
     const endEl = document.createTextNode(endRange.cloneContents().textContent || '')
     endRange.detach()
 
-    const targetEl = document.createElement('text')
+    const targetEl = document.createElement('span')
     const textNode = document.createTextNode(range.cloneContents().textContent || '')
     targetEl.appendChild(textNode)
     this.applyCSSToObject(targetEl, styles)
@@ -167,7 +188,7 @@ class RichText {
         const [lText, rText] = this.splitStr(startContainer.textContent || '', startOffset)
         const lTextNode = document.createTextNode(lText)
         const rTextNode = document.createTextNode(rText)
-        const rTextEl = document.createElement('text')
+        const rTextEl = document.createElement('span')
         this.applyCSSToObject(rTextEl, styles)
         rTextEl.appendChild(rTextNode)
         node.parentNode?.insertBefore(lTextNode, node)
@@ -178,7 +199,7 @@ class RichText {
         const [lText, rText] = this.splitStr(endContainer.textContent || '', endOffset)
         const lTextNode = document.createTextNode(lText)
         const rTextNode = document.createTextNode(rText)
-        const lTextEl = document.createElement('text')
+        const lTextEl = document.createElement('span')
         this.applyCSSToObject(lTextEl, styles)
         lTextEl.appendChild(lTextNode)
         node.parentNode?.insertBefore(lTextEl, node)
@@ -188,7 +209,7 @@ class RichText {
 
         const text = node.textContent
         const textNode = document.createTextNode(text || '')
-        const textEl = document.createElement('text')
+        const textEl = document.createElement('span')
         this.applyCSSToObject(textEl, styles)
         textEl.appendChild(textNode)
         node.parentNode?.replaceChild(textEl, node)
@@ -216,9 +237,6 @@ class RichText {
   }
 
   private insertInlineCustomElement(el: HTMLElement, range: Range) {
-    const beforeText = document.createTextNode('\xa0')
-    const afterText = document.createTextNode('\xa0')
-
     const container = document.createElement('div')
     container.style.display = 'inline-block'
     container.setAttribute('contenteditable', 'false')
@@ -279,12 +297,78 @@ class RichText {
         if (item.kind === 'file' && item.type.match('^image/')) {
           const pasteFile = item.getAsFile()
           // pasteFile就是获取到的文件
-          const img = customComponents['custom-img']
+          const img = getCustomComponents()['custom-img']
           const imgInstance = new img.Constructor({ file: pasteFile })
           console.log(imgInstance)
           range.insertNode(imgInstance)
         }
       }
+    }
+  }
+
+  // 将dom转换为虚拟dom，重点就是递归的获取自定义元素的props
+  public static jsonize(dom: HTMLElement) {
+    const virtualDOM: RichTextVirtualDOM = {
+      nodeName: dom.nodeName,
+      nodeType: dom.nodeType,
+      isCustomEl: !!getCustomComponents()[dom.nodeName.toLocaleLowerCase()],
+      attrs: {},
+      children: [],
+      textContent: '',
+      props: {}
+    }
+    const attrs = dom.attributes
+    // 如果是自定义元素，则调用自定义元素的getProps方法获取props
+    if (virtualDOM.isCustomEl) {
+      virtualDOM.props = dom.getProps().props
+    }
+    // 如果是元素节点，则往下找子节点
+    else if (dom.nodeType === Node.ELEMENT_NODE) {
+      for (let i = 0; i < attrs.length; i++) {
+        const attrName = attrs[i].name
+        virtualDOM.attrs[attrName] = attrs[i].value
+      }
+      virtualDOM.children = Array.from(dom.childNodes).map(child => this.jsonize(child as HTMLElement))
+    }
+    // 如果是文本节点，则直接获取内容
+    else if (dom.nodeType === Node.TEXT_NODE) {
+      virtualDOM.textContent = dom.textContent || ''
+    }
+    return virtualDOM
+  }
+
+  // 将虚拟dom转换为真实dom
+  public static parse2DOM(virtualDOM: RichTextVirtualDOM, isAncestor = true) {
+    let dom: Node
+    // 自定义函数就new,传递mode
+    if (virtualDOM.isCustomEl) {
+      const CustomComp = getCustomComponents()[virtualDOM.nodeName.toLocaleLowerCase()]
+      dom = new CustomComp.Constructor({ ...virtualDOM.props, mode: this.mode })
+    } else {
+      // 原生节点先判断节点类型，根据类型来创建节点
+      if (virtualDOM.nodeType === Node.ELEMENT_NODE) {
+        dom = document.createElement(virtualDOM.nodeName)
+        // 原生元素则将子节点塞进去
+        virtualDOM.children.forEach(child => {
+          dom.appendChild(this.parse2DOM(child, false))
+        })
+        // 设置属性
+        Object.keys(virtualDOM.attrs).forEach(name => {
+          (dom as HTMLElement).setAttribute(name, virtualDOM.attrs[name])
+        })
+      } else if (virtualDOM.nodeType === Node.TEXT_NODE) {
+        dom = document.createTextNode(virtualDOM.textContent)
+      } else {
+        dom = document.createTextNode('')
+      }
+    }
+    // 如果一开始就是文本节点，则代表需要套一个元素
+    if (isAncestor && virtualDOM.nodeType === Node.ELEMENT_NODE) {
+      const textContainer = document.createElement('span')
+      textContainer.appendChild(dom)
+      return textContainer
+    } else {
+      return dom
     }
   }
 

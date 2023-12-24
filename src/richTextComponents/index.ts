@@ -14,7 +14,7 @@ import CustomImg from './CustomImg.ce.vue'
 const Components = [CustomLink, CodeEdit, CustomTabs, CustomImg]
 
 const customComponents = {
-  install() {
+  install() {    
     const componentsName: CustomComponents = {}
     Components.forEach((component) => {
       const CustomElement = defineCustomElement(component)
